@@ -3,25 +3,69 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import connectDB from './config/database.js'
 import propertiesRoutes from './routes/properties.js'
 import contactRoutes from './routes/contact.js'
+import adminRoutes from './routes/admin.js'
+import postsRoutes from './routes/posts.js'
+import settingsRoutes from './routes/settings.js'
+import blogsRoutes from './routes/blogs.js'
+import partnersRoutes from './routes/partners.js'
+
+// Get directory name in ES module
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Load environment variables
 dotenv.config()
 
+// Connect to MongoDB
+connectDB().then(dbConnected => {
+  console.log(dbConnected ? '✅ Using real database' : '⚠️ Using mock data - some features may be limited')
+})
+
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 5002
 
 // Middleware
 app.use(helmet()) // Security headers
-app.use(cors()) // Enable CORS
+
+// CORS configuration with cache control headers
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'X-Requested-With']
+}))
+
+// Add cache control headers to all responses
+app.use((req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  })
+  next()
+})
+
 app.use(morgan('combined')) // Logging
 app.use(express.json({ limit: '10mb' })) // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })) // Parse URL-encoded bodies
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+
 // Routes
 app.use('/api/properties', propertiesRoutes)
 app.use('/api/contact', contactRoutes)
+app.use('/api/admin', adminRoutes)
+app.use('/api/posts', postsRoutes) // This route handles all post-related endpoints
+app.use('/api/settings', settingsRoutes)
+app.use('/api/blogs', blogsRoutes)
+app.use('/api/partners', partnersRoutes)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

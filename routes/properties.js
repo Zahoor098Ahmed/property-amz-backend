@@ -1,342 +1,340 @@
 import express from 'express'
+import mongoose from 'mongoose'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
+import Property from '../models/Property.js'
+import { authenticateToken as auth } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// Sample properties data (in a real app, this would come from a database)
-const properties = [
-  {
-    id: 1,
-    title: 'Luxury Villa in Palm Jumeirah',
-    description: 'Stunning 5-bedroom villa with private beach access and panoramic views of Dubai skyline. This exceptional property features modern architecture, premium finishes, and world-class amenities.',
-    price: 15000000,
-    priceFormatted: 'AED 15,000,000',
-    bedrooms: 5,
-    bathrooms: 6,
-    area: 8500,
-    areaFormatted: '8,500 sq ft',
-    type: 'villa',
-    status: 'available',
-    location: 'Palm Jumeirah',
-    coordinates: { lat: 25.1124, lng: 55.1390 },
-    images: [
-      'https://images.unsplash.com/photo-1613490493576-7fde63acd811?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-    ],
-    features: ['Private Beach', 'Swimming Pool', 'Garden', 'Parking', 'Security', 'Maid Room'],
-    yearBuilt: 2020,
-    furnished: true,
-    featured: true,
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-15T10:00:00Z'
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(process.cwd(), 'uploads')
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
+    }
+    cb(null, uploadDir)
   },
+  filename: (req, file, cb) => {
+    // Create unique filename with original extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    const ext = path.extname(file.originalname)
+    cb(null, 'property-' + uniqueSuffix + ext)
+  }
+})
+
+// File filter to only accept images
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true)
+  } else {
+    cb(new Error('Only image files are allowed'), false)
+  }
+}
+
+const upload = multer({ 
+  storage, 
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+})
+
+// Serve static files from uploads directory
+router.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+
+// Mock properties for development when database is not connected
+let mockProperties = [
   {
-    id: 2,
-    title: 'Modern Apartment in Downtown',
-    description: 'Contemporary 2-bedroom apartment in the heart of Downtown Dubai with stunning Burj Khalifa views. Premium building with luxury amenities and prime location.',
+    _id: 'mock-property-1',
+    title: 'Luxury Villa in Downtown',
+    description: 'Beautiful 4-bedroom villa with modern amenities',
     price: 2500000,
-    priceFormatted: 'AED 2,500,000',
-    bedrooms: 2,
-    bathrooms: 3,
-    area: 1200,
-    areaFormatted: '1,200 sq ft',
-    type: 'apartment',
-    status: 'available',
     location: 'Downtown Dubai',
-    coordinates: { lat: 25.1972, lng: 55.2744 },
-    images: [
-      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-    ],
-    features: ['Burj Khalifa View', 'Gym', 'Pool', 'Concierge', 'Parking', 'Balcony'],
-    yearBuilt: 2019,
-    furnished: false,
-    featured: true,
-    createdAt: '2024-01-10T14:30:00Z',
-    updatedAt: '2024-01-10T14:30:00Z'
-  },
-  {
-    id: 3,
-    title: 'Penthouse in Marina',
-    description: 'Exclusive 4-bedroom penthouse with 360-degree views of Dubai Marina and the Arabian Gulf. Features include private terrace, jacuzzi, and premium finishes throughout.',
-    price: 8000000,
-    priceFormatted: 'AED 8,000,000',
     bedrooms: 4,
-    bathrooms: 5,
+    bathrooms: 3,
     area: 3500,
-    areaFormatted: '3,500 sq ft',
-    type: 'penthouse',
+    type: 'exclusive',
+    images: ['/images/property1.jpg'],
+    features: ['Swimming Pool', 'Gym', 'Parking'],
     status: 'available',
-    location: 'Dubai Marina',
-    coordinates: { lat: 25.0657, lng: 55.1713 },
-    images: [
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1613490493576-7fde63acd811?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-    ],
-    features: ['Marina View', 'Private Terrace', 'Jacuzzi', 'Maid Room', 'Storage', 'Premium Finishes'],
-    yearBuilt: 2021,
-    furnished: true,
-    featured: false,
-    createdAt: '2024-01-08T09:15:00Z',
-    updatedAt: '2024-01-08T09:15:00Z'
+    createdAt: new Date(),
+    updatedAt: new Date()
   },
   {
-    id: 4,
-    title: 'Townhouse in Arabian Ranches',
-    description: 'Spacious 4-bedroom townhouse in the prestigious Arabian Ranches community. Family-friendly environment with golf course views and excellent amenities.',
-    price: 4200000,
-    priceFormatted: 'AED 4,200,000',
-    bedrooms: 4,
-    bathrooms: 5,
-    area: 2800,
-    areaFormatted: '2,800 sq ft',
-    type: 'townhouse',
-    status: 'available',
-    location: 'Arabian Ranches',
-    coordinates: { lat: 25.0657, lng: 55.2708 },
-    images: [
-      'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-    ],
-    features: ['Golf Course View', 'Garden', 'Community Pool', 'Playground', 'Security', 'Parking'],
-    yearBuilt: 2018,
-    furnished: false,
-    featured: false,
-    createdAt: '2024-01-05T16:45:00Z',
-    updatedAt: '2024-01-05T16:45:00Z'
-  },
-  {
-    id: 5,
-    title: 'Studio in Business Bay',
-    description: 'Modern studio apartment in Business Bay with canal views. Perfect for young professionals or investors. High-quality finishes and excellent rental potential.',
-    price: 850000,
-    priceFormatted: 'AED 850,000',
-    bedrooms: 0,
-    bathrooms: 1,
-    area: 450,
-    areaFormatted: '450 sq ft',
-    type: 'studio',
-    status: 'available',
+    _id: 'mock-property-2',
+    title: 'Modern Apartment Complex',
+    description: 'Contemporary 2-bedroom apartment with city views',
+    price: 1200000,
     location: 'Business Bay',
-    coordinates: { lat: 25.1877, lng: 55.2633 },
-    images: [
-      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-    ],
-    features: ['Canal View', 'Gym', 'Pool', 'Metro Access', 'Balcony', 'Modern Kitchen'],
-    yearBuilt: 2020,
-    furnished: true,
-    featured: false,
-    createdAt: '2024-01-03T11:20:00Z',
-    updatedAt: '2024-01-03T11:20:00Z'
-  },
-  {
-    id: 6,
-    title: 'Luxury Apartment in JBR',
-    description: 'Beachfront 3-bedroom apartment in Jumeirah Beach Residence with direct beach access. Stunning sea views and resort-style living in the heart of Dubai.',
-    price: 3800000,
-    priceFormatted: 'AED 3,800,000',
-    bedrooms: 3,
-    bathrooms: 4,
-    area: 1800,
-    areaFormatted: '1,800 sq ft',
-    type: 'apartment',
+    bedrooms: 2,
+    bathrooms: 2,
+    area: 1200,
+    type: 'off-plan',
+    images: ['/images/property2.jpg'],
+    features: ['Balcony', 'Gym', 'Security'],
     status: 'available',
-    location: 'JBR',
-    coordinates: { lat: 25.0657, lng: 55.1390 },
-    images: [
-      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-    ],
-    features: ['Beach Access', 'Sea View', 'Resort Amenities', 'Restaurants', 'Shopping', 'Parking'],
-    yearBuilt: 2017,
-    furnished: false,
-    featured: false,
-    createdAt: '2024-01-01T08:00:00Z',
-    updatedAt: '2024-01-01T08:00:00Z'
+    createdAt: new Date(),
+    updatedAt: new Date()
   }
 ]
 
-// GET /api/properties - Get all properties with filtering and pagination
-router.get('/', (req, res) => {
+// Get all properties
+router.get('/', async (req, res) => {
   try {
-    const {
-      type,
-      minPrice,
-      maxPrice,
-      bedrooms,
-      location,
-      featured,
-      status = 'available',
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query
-
-    let filteredProperties = [...properties]
-
-    // Apply filters
-    if (type && type !== 'all') {
-      filteredProperties = filteredProperties.filter(p => p.type === type)
+    const { type } = req.query
+    let filter = {}
+    
+    if (type && ['exclusive', 'off-plan'].includes(type)) {
+      filter.type = type
     }
-
-    if (minPrice) {
-      filteredProperties = filteredProperties.filter(p => p.price >= parseInt(minPrice))
-    }
-
-    if (maxPrice) {
-      filteredProperties = filteredProperties.filter(p => p.price <= parseInt(maxPrice))
-    }
-
-    if (bedrooms) {
-      filteredProperties = filteredProperties.filter(p => p.bedrooms === parseInt(bedrooms))
-    }
-
-    if (location) {
-      filteredProperties = filteredProperties.filter(p => 
-        p.location.toLowerCase().includes(location.toLowerCase())
-      )
-    }
-
-    if (featured === 'true') {
-      filteredProperties = filteredProperties.filter(p => p.featured === true)
-    }
-
-    if (status) {
-      filteredProperties = filteredProperties.filter(p => p.status === status)
-    }
-
-    // Apply sorting
-    filteredProperties.sort((a, b) => {
-      let aValue = a[sortBy]
-      let bValue = b[sortBy]
-
-      if (sortBy === 'price') {
-        aValue = a.price
-        bValue = b.price
+    
+    // Fallback to mock data when database is not connected
+    if (mongoose.connection.readyState !== 1) {
+      
+      let filteredProperties = mockProperties
+      if (type && ['exclusive', 'off-plan'].includes(type)) {
+        filteredProperties = mockProperties.filter(p => p.type === type)
       }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1
-      } else {
-        return aValue < bValue ? 1 : -1
-      }
-    })
-
-    // Apply pagination
-    const startIndex = (parseInt(page) - 1) * parseInt(limit)
-    const endIndex = startIndex + parseInt(limit)
-    const paginatedProperties = filteredProperties.slice(startIndex, endIndex)
-
-    // Response
-    res.json({
-      success: true,
-      data: paginatedProperties,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(filteredProperties.length / parseInt(limit)),
-        totalItems: filteredProperties.length,
-        itemsPerPage: parseInt(limit),
-        hasNextPage: endIndex < filteredProperties.length,
-        hasPrevPage: startIndex > 0
-      },
-      filters: {
-        type,
-        minPrice,
-        maxPrice,
-        bedrooms,
-        location,
-        featured,
-        status
-      }
-    })
+      
+      return res.json({ success: true, data: filteredProperties })
+    }
+    
+    const properties = await Property.find(filter).sort({ createdAt: -1 })
+    res.json({ success: true, data: properties })
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch properties',
-      message: error.message
-    })
+    console.error('Error fetching properties:', error)
+    res.status(500).json({ message: 'Server error' })
   }
 })
 
-// GET /api/properties/:id - Get single property by ID
-router.get('/:id', (req, res) => {
+// Get single property
+router.get('/:id', async (req, res) => {
   try {
-    const { id } = req.params
-    const property = properties.find(p => p.id === parseInt(id))
-
+    // Fallback to mock data when database is not connected
+    if (mongoose.connection.readyState !== 1) {
+      const mockProperty = {
+        _id: req.params.id,
+        title: 'Mock Property Details',
+        description: 'This is a mock property for testing purposes when database is not available',
+        price: 1500000,
+        location: 'Mock Location',
+        bedrooms: 3,
+        bathrooms: 2,
+        area: 2000,
+        type: 'exclusive',
+        images: ['/api/placeholder/400/300'],
+        features: ['Mock Feature 1', 'Mock Feature 2'],
+        status: 'available',
+        createdAt: new Date()
+      }
+      
+      return res.json({ success: true, data: mockProperty })
+    }
+    
+    const property = await Property.findById(req.params.id)
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        error: 'Property not found',
-        message: `Property with ID ${id} does not exist`
-      })
+      return res.status(404).json({ success: false, message: 'Property not found' })
     }
-
-    res.json({
-      success: true,
-      data: property
-    })
+    res.json({ success: true, data: property })
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch property',
-      message: error.message
-    })
+    console.error('Error fetching property:', error)
+    res.status(500).json({ message: 'Server error' })
   }
 })
 
-// GET /api/properties/featured - Get featured properties
-router.get('/featured/list', (req, res) => {
+// Create new property with image upload (admin only)
+router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const featuredProperties = properties.filter(p => p.featured === true)
+    console.log('Create property request received');
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file);
     
-    res.json({
-      success: true,
-      data: featuredProperties,
-      count: featuredProperties.length
+    const {
+      title,
+      description,
+      price,
+      location,
+      type,
+      bedrooms,
+      bathrooms,
+      area,
+      features,
+      status,
+      developer,
+      completionDate,
+      paymentPlan,
+      roi
+    } = req.body
+    
+    // Handle image upload
+    let imagePath = ''
+    if (req.file) {
+      // Create URL path for the uploaded image
+      imagePath = `/api/properties/uploads/${req.file.filename}`
+      console.log('New image path:', imagePath);
+    } else if (req.body.image) {
+      // If no file uploaded but image URL provided in request body
+      imagePath = req.body.image
+      console.log('Using provided image path:', imagePath);
+    } else {
+      // Default placeholder image if no image provided
+      imagePath = '/api/properties/uploads/default-property.jpg'
+      console.log('Using default image path');
+    }
+
+    // Fallback when database is not connected
+    if (mongoose.connection.readyState !== 1) {
+      const mockProperty = {
+        _id: 'mock-property-' + Date.now(),
+        title,
+        description,
+        price,
+        location,
+        image: imagePath,
+        type,
+        bedrooms,
+        bathrooms,
+        area,
+        features: features || [],
+        status: status || 'available',
+        developer,
+        completionDate,
+        paymentPlan,
+        roi,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+      
+      // Add to mock properties array for persistence
+      mockProperties.push(mockProperty)
+      console.log('Mock property created:', mockProperty)
+      console.log('Total mock properties:', mockProperties.length)
+      return res.status(201).json({ success: true, data: mockProperty })
+    }
+
+    const property = new Property({
+      title,
+      description,
+      price,
+      location,
+      image: imagePath,
+      type,
+      bedrooms,
+      bathrooms,
+      area,
+      features: features || [],
+      status: status || 'available',
+      developer,
+      completionDate,
+      paymentPlan,
+      roi
     })
+
+    await property.save()
+    res.status(201).json({ success: true, data: property })
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch featured properties',
-      message: error.message
-    })
+    console.error('Error creating property:', error)
+    res.status(500).json({ message: 'Server error' })
   }
 })
 
-// GET /api/properties/search - Search properties
-router.get('/search/query', (req, res) => {
+// Update property with image upload (admin only)
+router.put('/:id', upload.single('image'), async (req, res) => {
   try {
-    const { q } = req.query
+    console.log('Update property request received for ID:', req.params.id);
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file);
     
-    if (!q) {
-      return res.status(400).json({
-        success: false,
-        error: 'Search query is required',
-        message: 'Please provide a search query parameter "q"'
-      })
+    // Handle image upload
+    let imagePath = null
+    if (req.file) {
+      // Create URL path for the uploaded image
+      imagePath = `/api/properties/uploads/${req.file.filename}`
+      console.log('New image path:', imagePath);
+    } else if (req.body.image) {
+      // If no file uploaded but image URL provided in request body
+      imagePath = req.body.image
+      console.log('Using existing image path:', imagePath);
     }
-
-    const searchResults = properties.filter(property => 
-      property.title.toLowerCase().includes(q.toLowerCase()) ||
-      property.description.toLowerCase().includes(q.toLowerCase()) ||
-      property.location.toLowerCase().includes(q.toLowerCase()) ||
-      property.type.toLowerCase().includes(q.toLowerCase())
+    
+    // Create update object with or without new image
+    const updateData = { ...req.body }
+    
+    // Handle features array
+    if (req.body.features && !Array.isArray(req.body.features)) {
+      if (typeof req.body.features === 'string') {
+        updateData.features = [req.body.features];
+      }
+    }
+    
+    if (imagePath) {
+      updateData.image = imagePath
+    }
+    
+    console.log('Update data:', updateData);
+    
+    // Check if it's a mock property ID
+    if (req.params.id.startsWith('mock-')) {
+      // Handle mock property update
+      const mockPropertyIndex = mockProperties.findIndex(p => p._id === req.params.id)
+      if (mockPropertyIndex === -1) {
+        return res.status(404).json({ success: false, message: 'Property not found' })
+      }
+      
+      const updatedProperty = { ...mockProperties[mockPropertyIndex], ...updateData, updatedAt: new Date() }
+      mockProperties[mockPropertyIndex] = updatedProperty
+      console.log('Mock property updated:', updatedProperty)
+      return res.json({ success: true, data: updatedProperty })
+    }
+    
+    const property = await Property.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
     )
-
-    res.json({
-      success: true,
-      data: searchResults,
-      query: q,
-      count: searchResults.length
-    })
+    
+    if (!property) {
+      return res.status(404).json({ success: false, message: 'Property not found' })
+    }
+    res.json({ success: true, data: property })
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Search failed',
-      message: error.message
-    })
+    console.error('Error updating property:', error)
+    res.status(500).json({ success: false, message: error.message || 'Server error' })
+  }
+})
+
+// Delete property (admin only)
+router.delete('/:id', async (req, res) => {
+  try {
+    console.log('Delete property request received for ID:', req.params.id);
+    
+    // Check if it's a mock property ID
+    if (req.params.id.startsWith('mock-')) {
+      // Handle mock property deletion
+      const initialLength = mockProperties.length
+      mockProperties = mockProperties.filter(p => p._id !== req.params.id)
+      
+      if (mockProperties.length === initialLength) {
+        return res.status(404).json({ success: false, message: 'Property not found' })
+      }
+      
+      console.log('Mock property deleted, remaining:', mockProperties.length)
+      return res.json({ success: true, message: 'Property removed' })
+    }
+    
+    const property = await Property.findById(req.params.id)
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found' })
+    }
+
+    await property.deleteOne()
+    res.json({ success: true, message: 'Property removed' })
+  } catch (error) {
+    console.error('Error deleting property:', error)
+    res.status(500).json({ message: 'Server error' })
   }
 })
 
