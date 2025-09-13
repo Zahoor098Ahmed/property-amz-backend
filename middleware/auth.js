@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken'
 import Admin from '../models/Admin.js'
 
-export const authenticateToken = async (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(' ')[1]
@@ -65,3 +65,6 @@ export const generateToken = (adminId) => {
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   )
 }
+
+export default authenticateToken
+export { authenticateToken }

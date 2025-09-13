@@ -20,11 +20,12 @@ const propertySchema = new mongoose.Schema({
   },
   image: {
     type: String,
-    required: true
+    required: false,
+    default: 'default-property.jpg'
   },
   type: {
     type: String,
-    enum: ['exclusive', 'off-plan'],
+    enum: ['exclusive', 'off-plan', 'villa', 'apartment', 'townhouse'],
     required: true
   },
   bedrooms: {

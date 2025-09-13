@@ -45,65 +45,107 @@ const upload = multer({
 // Serve static files from uploads directory
 router.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 
-// Mock properties for development when database is not connected
-let mockProperties = [
-  {
-    _id: 'mock-property-1',
-    title: 'Luxury Villa in Downtown',
-    description: 'Beautiful 4-bedroom villa with modern amenities',
-    price: 2500000,
-    location: 'Downtown Dubai',
-    bedrooms: 4,
-    bathrooms: 3,
-    area: 3500,
-    type: 'exclusive',
-    images: ['/images/property1.jpg'],
-    features: ['Swimming Pool', 'Gym', 'Parking'],
-    status: 'available',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    _id: 'mock-property-2',
-    title: 'Modern Apartment Complex',
-    description: 'Contemporary 2-bedroom apartment with city views',
-    price: 1200000,
-    location: 'Business Bay',
-    bedrooms: 2,
-    bathrooms: 2,
-    area: 1200,
-    type: 'off-plan',
-    images: ['/images/property2.jpg'],
-    features: ['Balcony', 'Gym', 'Security'],
-    status: 'available',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
-]
+// Removed mock data - using only MongoDB
 
-// Get all properties
+// Get all properties with advanced filtering, sorting, and pagination
 router.get('/', async (req, res) => {
   try {
-    const { type } = req.query
+    const {
+      type,
+      location,
+      minPrice,
+      maxPrice,
+      bedrooms,
+      bathrooms,
+      minArea,
+      maxArea,
+      status,
+      developer,
+      search,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query
+    
+    // Build filter object
     let filter = {}
     
     if (type && ['exclusive', 'off-plan'].includes(type)) {
       filter.type = type
     }
     
-    // Fallback to mock data when database is not connected
-    if (mongoose.connection.readyState !== 1) {
-      
-      let filteredProperties = mockProperties
-      if (type && ['exclusive', 'off-plan'].includes(type)) {
-        filteredProperties = mockProperties.filter(p => p.type === type)
-      }
-      
-      return res.json({ success: true, data: filteredProperties })
+    if (location) {
+      filter.location = { $regex: location, $options: 'i' }
     }
     
-    const properties = await Property.find(filter).sort({ createdAt: -1 })
-    res.json({ success: true, data: properties })
+    if (minPrice || maxPrice) {
+      filter.price = {}
+      if (minPrice) filter.price.$gte = parseInt(minPrice)
+      if (maxPrice) filter.price.$lte = parseInt(maxPrice)
+    }
+    
+    if (bedrooms) {
+      filter.bedrooms = parseInt(bedrooms)
+    }
+    
+    if (bathrooms) {
+      filter.bathrooms = parseInt(bathrooms)
+    }
+    
+    if (minArea || maxArea) {
+      filter.area = {}
+      if (minArea) filter.area.$gte = parseInt(minArea)
+      if (maxArea) filter.area.$lte = parseInt(maxArea)
+    }
+    
+    if (status) {
+      filter.status = status
+    }
+    
+    if (developer) {
+      filter.developer = { $regex: developer, $options: 'i' }
+    }
+    
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } }
+      ]
+    }
+    
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database connection not available' 
+      })
+    }
+    
+    // Count total documents for pagination
+    const total = await Property.countDocuments(filter)
+    
+    // Create sort object
+    const sort = {}
+    sort[sortBy] = sortOrder === 'asc' ? 1 : -1
+    
+    // Fetch properties from database with pagination
+    const properties = await Property.find(filter)
+      .sort(sort)
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit))
+    
+    res.json({ 
+      success: true, 
+      data: properties,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    })
   } catch (error) {
     console.error('Error fetching properties:', error)
     res.status(500).json({ message: 'Server error' })
@@ -113,25 +155,12 @@ router.get('/', async (req, res) => {
 // Get single property
 router.get('/:id', async (req, res) => {
   try {
-    // Fallback to mock data when database is not connected
+    // Check database connection
     if (mongoose.connection.readyState !== 1) {
-      const mockProperty = {
-        _id: req.params.id,
-        title: 'Mock Property Details',
-        description: 'This is a mock property for testing purposes when database is not available',
-        price: 1500000,
-        location: 'Mock Location',
-        bedrooms: 3,
-        bathrooms: 2,
-        area: 2000,
-        type: 'exclusive',
-        images: ['/api/placeholder/400/300'],
-        features: ['Mock Feature 1', 'Mock Feature 2'],
-        status: 'available',
-        createdAt: new Date()
-      }
-      
-      return res.json({ success: true, data: mockProperty })
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database connection not available' 
+      })
     }
     
     const property = await Property.findById(req.params.id)
@@ -169,6 +198,37 @@ router.post('/', upload.single('image'), async (req, res) => {
       roi
     } = req.body
     
+    // Validate required fields
+    if (!title || !description || !price || !location || !bedrooms || !bathrooms || !area) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'All required fields must be provided: title, description, price, location, bedrooms, bathrooms, area' 
+      })
+    }
+    
+    // Convert string numbers to integers
+    const numericPrice = parseInt(price)
+    const numericBedrooms = parseInt(bedrooms)
+    const numericBathrooms = parseInt(bathrooms)
+    const numericArea = parseInt(area)
+    
+    // Validate numeric values
+    if (isNaN(numericPrice) || numericPrice <= 0) {
+      return res.status(400).json({ success: false, message: 'Price must be a valid positive number' })
+    }
+    
+    if (isNaN(numericBedrooms) || numericBedrooms <= 0) {
+      return res.status(400).json({ success: false, message: 'Bedrooms must be a valid positive number' })
+    }
+    
+    if (isNaN(numericBathrooms) || numericBathrooms <= 0) {
+      return res.status(400).json({ success: false, message: 'Bathrooms must be a valid positive number' })
+    }
+    
+    if (isNaN(numericArea) || numericArea <= 0) {
+      return res.status(400).json({ success: false, message: 'Area must be a valid positive number' })
+    }
+    
     // Handle image upload
     let imagePath = ''
     if (req.file) {
@@ -185,46 +245,24 @@ router.post('/', upload.single('image'), async (req, res) => {
       console.log('Using default image path');
     }
 
-    // Fallback when database is not connected
+    // Check database connection
     if (mongoose.connection.readyState !== 1) {
-      const mockProperty = {
-        _id: 'mock-property-' + Date.now(),
-        title,
-        description,
-        price,
-        location,
-        image: imagePath,
-        type,
-        bedrooms,
-        bathrooms,
-        area,
-        features: features || [],
-        status: status || 'available',
-        developer,
-        completionDate,
-        paymentPlan,
-        roi,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-      
-      // Add to mock properties array for persistence
-      mockProperties.push(mockProperty)
-      console.log('Mock property created:', mockProperty)
-      console.log('Total mock properties:', mockProperties.length)
-      return res.status(201).json({ success: true, data: mockProperty })
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database connection not available' 
+      })
     }
 
     const property = new Property({
       title,
       description,
-      price,
+      price: numericPrice,
       location,
       image: imagePath,
       type,
-      bedrooms,
-      bathrooms,
-      area,
+      bedrooms: numericBedrooms,
+      bathrooms: numericBathrooms,
+      area: numericArea,
       features: features || [],
       status: status || 'available',
       developer,

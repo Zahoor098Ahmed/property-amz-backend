@@ -10,21 +10,15 @@ const blogSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
-    trim: true
+    lowercase: true
   },
   excerpt: {
     type: String,
-    required: true,
-    trim: true
+    required: true
   },
   content: {
     type: String,
     required: true
-  },
-  image: {
-    type: String,
-    required: false,
-    default: ''
   },
   category: {
     type: String,
@@ -35,17 +29,6 @@ const blogSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
-  author: {
-    name: {
-      type: String,
-      required: true,
-      default: 'AMZ Properties'
-    },
-    email: {
-      type: String,
-      default: 'info@amzproperties.com'
-    }
-  },
   status: {
     type: String,
     enum: ['draft', 'published', 'archived'],
@@ -55,23 +38,39 @@ const blogSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  image: {
+    type: String
+  },
+  author: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    required: true
+  },
   views: {
     type: Number,
     default: 0
   },
+  likes: {
+    type: Number,
+    default: 0
+  },
+  metaTitle: {
+    type: String
+  },
+  metaDescription: {
+    type: String
+  },
+  keywords: {
+    type: String
+  },
   publishedAt: {
     type: Date
-  },
-  seo: {
-    metaTitle: String,
-    metaDescription: String,
-    keywords: [String]
   }
 }, {
   timestamps: true
 })
 
-// Create slug from title before saving
+// Generate slug from title before saving
 blogSchema.pre('save', function(next) {
   if (this.isModified('title')) {
     this.slug = this.title
@@ -81,19 +80,8 @@ blogSchema.pre('save', function(next) {
       .replace(/-+/g, '-')
       .trim('-')
   }
-  
-  if (this.status === 'published' && !this.publishedAt) {
-    this.publishedAt = new Date()
-  }
-  
   next()
 })
-
-// Index for better search performance
-blogSchema.index({ title: 'text', content: 'text', excerpt: 'text' })
-blogSchema.index({ status: 1, publishedAt: -1 })
-blogSchema.index({ category: 1 })
-blogSchema.index({ featured: 1 })
 
 const Blog = mongoose.model('Blog', blogSchema)
 export default Blog

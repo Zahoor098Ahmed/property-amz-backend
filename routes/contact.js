@@ -1,6 +1,7 @@
 import express from 'express'
 import mongoose from 'mongoose'
 import Contact from '../models/Contact.js'
+import { sendContactNotification, sendContactConfirmation } from '../utils/emailService.js'
 
 const router = express.Router()
 
@@ -63,6 +64,24 @@ router.post('/', async (req, res) => {
       // Store submission in memory
       contactSubmissions.push(submission)
 
+      // Send email notifications (async, don't wait for completion)
+      const emailData = {
+        name: submission.name,
+        email: submission.email,
+        phone: submission.phone,
+        message: submission.message,
+        source: req.body.source || 'Contact Form'
+      }
+      
+      // Send notifications without blocking the response
+      sendContactNotification(emailData).catch(err => 
+        console.error('Failed to send admin notification:', err)
+      )
+      
+      sendContactConfirmation(emailData).catch(err => 
+        console.error('Failed to send user confirmation:', err)
+      )
+
       return res.status(201).json({
         success: true,
         message: 'Thank you for your inquiry! We will get back to you soon.',
@@ -88,6 +107,24 @@ router.post('/', async (req, res) => {
 
     await contact.save()
     console.log('Contact saved to database with ID:', contact._id)
+
+    // Send email notifications (async, don't wait for completion)
+    const emailData = {
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      message: contact.message,
+      source: req.body.source || 'Contact Form'
+    }
+    
+    // Send notifications without blocking the response
+    sendContactNotification(emailData).catch(err => 
+      console.error('Failed to send admin notification:', err)
+    )
+    
+    sendContactConfirmation(emailData).catch(err => 
+      console.error('Failed to send user confirmation:', err)
+    )
 
     res.status(201).json({
       success: true,

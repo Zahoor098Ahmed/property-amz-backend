@@ -1,152 +1,191 @@
 import mongoose from 'mongoose'
-import Blog from '../models/Blog.js'
 import dotenv from 'dotenv'
+import Blog from '../models/Blog.js'
+import Admin from '../models/Admin.js'
+import connectDB from '../config/database.js'
 
 // Load environment variables
 dotenv.config()
 
-// Static blog data from frontend
-const staticBlogPosts = [
-  {
-    id: 1,
-    title: 'Dubai Real Estate Market Trends 2024',
-    excerpt: 'Discover the latest trends shaping Dubai\'s luxury property market and investment opportunities.',
-    content: `
-      <h2>The Dubai Real Estate Market in 2024</h2>
-      <p>Dubai's real estate market continues to show remarkable resilience and growth in 2024. With new developments, innovative financing options, and a growing international investor base, the market presents numerous opportunities for both local and international buyers.</p>
-      
-      <h3>Key Market Trends</h3>
-      <ul>
-        <li><strong>Sustainable Development:</strong> Green building initiatives and eco-friendly properties are becoming increasingly popular.</li>
-        <li><strong>Smart Homes:</strong> Integration of IoT and smart home technologies in luxury developments.</li>
-        <li><strong>Off-Plan Investments:</strong> Continued strong demand for off-plan properties with attractive payment plans.</li>
-        <li><strong>International Investment:</strong> Growing interest from European and Asian investors.</li>
-      </ul>
-      
-      <h3>Investment Opportunities</h3>
-      <p>The current market conditions present excellent opportunities for investors looking to enter the Dubai real estate market. With competitive pricing and flexible payment plans, now is an ideal time to invest in Dubai's growing property sector.</p>
-    `,
-    image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=400&fit=crop',
-    category: 'Market Trends',
-    status: 'published',
-    featured: true,
-    tags: ['Dubai', 'Real Estate', 'Investment', 'Market Trends', '2024'],
-    author: {
-      name: 'Market Analysis Team',
-      email: 'market@amzproperties.com'
-    }
-  },
-  {
-    id: 2,
-    title: 'Investment Guide: Off-Plan Properties in Dubai',
-    excerpt: 'A comprehensive guide to investing in off-plan properties in Dubai, including benefits, risks, and key considerations.',
-    content: `
-      <h2>Understanding Off-Plan Property Investment</h2>
-      <p>Off-plan property investment involves purchasing a property before it's completed, often during the construction phase. This investment strategy has become increasingly popular in Dubai due to attractive payment plans and potential for capital appreciation.</p>
-      
-      <h3>Benefits of Off-Plan Investment</h3>
-      <ul>
-        <li><strong>Lower Initial Investment:</strong> Typically requires only 10-20% down payment</li>
-        <li><strong>Flexible Payment Plans:</strong> Spread payments over construction period</li>
-        <li><strong>Capital Appreciation:</strong> Potential for property value increase upon completion</li>
-        <li><strong>Modern Amenities:</strong> Latest designs and smart home features</li>
-      </ul>
-      
-      <h3>Key Considerations</h3>
-      <ul>
-        <li>Developer reputation and track record</li>
-        <li>Location and future development plans</li>
-        <li>Payment schedule and terms</li>
-        <li>Expected completion date</li>
-        <li>Market conditions and trends</li>
-      </ul>
-      
-      <h3>Top Off-Plan Projects in Dubai</h3>
-      <p>Some of the most promising off-plan projects currently available include developments in Dubai Creek Harbour, Downtown Dubai, and Dubai South. These areas offer excellent connectivity, world-class amenities, and strong potential for capital appreciation.</p>
-    `,
-    image: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=400&fit=crop',
-    category: 'Investment Guide',
-    status: 'published',
-    featured: false,
-    tags: ['Off-Plan', 'Investment', 'Dubai', 'Property Guide'],
-    author: {
-      name: 'Investment Team',
-      email: 'investment@amzproperties.com'
-    }
-  },
-  {
-    id: 3,
-    title: 'Luxury Living: Premium Amenities in Dubai Properties',
-    excerpt: 'Explore the world-class amenities and lifestyle features that make Dubai properties stand out in the global luxury market.',
-    content: `
-      <h2>The Luxury Lifestyle in Dubai</h2>
-      <p>Dubai has established itself as a global hub for luxury living, offering residents an unparalleled lifestyle with world-class amenities and services. From private beaches to rooftop infinity pools, Dubai's luxury properties redefine modern living.</p>
-      
-      <h3>Premium Amenities</h3>
-      <ul>
-        <li><strong>Private Beach Access:</strong> Exclusive beachfront locations with pristine sandy beaches</li>
-        <li><strong>Infinity Pools:</strong> Rooftop and ground-level pools with stunning city views</li>
-        <li><strong>Spa and Wellness Centers:</strong> Full-service spas with massage therapy and wellness programs</li>
-        <li><strong>Fitness Centers:</strong> State-of-the-art gyms with personal training services</li>
-        <li><strong>Concierge Services:</strong> 24/7 concierge for all resident needs</li>
-      </ul>
-      
-      <h3>Smart Home Technology</h3>
-      <p>Modern Dubai properties feature cutting-edge smart home technology, including automated lighting, climate control, security systems, and entertainment centers, all controllable through mobile apps.</p>
-      
-      <h3>Community Features</h3>
-      <p>Luxury developments in Dubai often include parks, playgrounds, retail outlets, restaurants, and community centers, creating self-contained neighborhoods that offer everything residents need within walking distance.</p>
-    `,
-    image: 'https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?w=800&h=400&fit=crop',
-    category: 'Lifestyle',
-    status: 'published',
-    featured: false,
-    tags: ['Luxury', 'Amenities', 'Dubai', 'Lifestyle', 'Premium'],
-    author: {
-      name: 'Lifestyle Team',
-      email: 'lifestyle@amzproperties.com'
-    }
-  }
-]
-
 const seedBlogs = async () => {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/amz-properties')
-    console.log('Connected to MongoDB')
+    // Connect to database
+    await connectDB()
 
-    // Clear existing blogs
-    await Blog.deleteMany({})
-    console.log('Cleared existing blogs')
-
-    // Insert static blog data
-    for (const blogData of staticBlogPosts) {
-      const { id, ...blogWithoutId } = blogData // Remove the id field
-      
-      // Generate slug from title
-      blogWithoutId.slug = blogWithoutId.title
-        .toLowerCase()
-        .replace(/[^a-z0-9 -]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .trim('-')
-      
-      // Set published date for published blogs
-      if (blogWithoutId.status === 'published') {
-        blogWithoutId.publishedAt = new Date()
-      }
-      
-      const blog = new Blog(blogWithoutId)
-      await blog.save()
-      console.log(`Saved blog: ${blog.title}`)
+    // Check if blogs already exist
+    const existingBlogs = await Blog.countDocuments()
+    
+    if (existingBlogs > 0) {
+      console.log('📝 Blogs already exist in database!')
+      console.log(`Total blogs: ${existingBlogs}`)
+      process.exit(0)
     }
 
-    console.log('All blogs seeded successfully!')
-    process.exit(0)
+    // Get admin user for author reference
+    let admin = await Admin.findOne()
+    if (!admin) {
+      console.log('Creating admin user for blog authorship...')
+      admin = new Admin({
+        name: 'Admin User',
+        email: 'admin@amzproperties.com',
+        password: 'admin123',
+        role: 'admin'
+      })
+      await admin.save()
+    }
+
+    // Sample blogs data
+    const sampleBlogs = [
+      {
+        title: 'Dubai Real Estate Market Trends 2024',
+        slug: 'dubai-real-estate-market-trends-2024',
+        excerpt: 'Discover the latest trends shaping Dubai\'s real estate market in 2024, including price movements, popular areas, and investment opportunities.',
+        content: `<h2>Dubai Real Estate Market Overview</h2>
+        <p>Dubai's real estate market continues to show remarkable resilience and growth in 2024. With new developments, government initiatives, and increasing foreign investment, the market presents numerous opportunities for both investors and homebuyers.</p>
+        
+        <h3>Key Market Trends</h3>
+        <ul>
+          <li><strong>Price Appreciation:</strong> Property values have increased by 15-20% year-over-year</li>
+          <li><strong>High Demand Areas:</strong> Dubai Marina, Downtown Dubai, and Palm Jumeirah remain top choices</li>
+          <li><strong>Off-Plan Properties:</strong> Strong investor interest in upcoming developments</li>
+          <li><strong>Luxury Segment:</strong> Ultra-luxury properties showing exceptional performance</li>
+        </ul>
+        
+        <h3>Investment Opportunities</h3>
+        <p>The current market conditions present excellent opportunities for investors looking to capitalize on Dubai's growing real estate sector. With attractive payment plans and high rental yields, now is an ideal time to invest.</p>`,
+        category: 'Market Trends',
+        tags: ['Dubai', 'Real Estate', 'Investment', 'Market Analysis'],
+        status: 'published',
+        featured: true,
+        image: '/uploads/blogs/dubai-market-trends.jpg',
+        author: admin._id,
+        views: 1250,
+        likes: 89,
+        metaTitle: 'Dubai Real Estate Market Trends 2024 | AMZ Properties',
+        metaDescription: 'Stay updated with the latest Dubai real estate market trends, price movements, and investment opportunities in 2024.',
+        keywords: 'Dubai real estate, market trends, property investment, Dubai property prices',
+        publishedAt: new Date('2024-01-15')
+      },
+      {
+        title: 'Complete Guide to Property Investment in UAE',
+        slug: 'complete-guide-property-investment-uae',
+        excerpt: 'A comprehensive guide covering everything you need to know about investing in UAE real estate, from legal requirements to financing options.',
+        content: `<h2>Why Invest in UAE Real Estate?</h2>
+        <p>The UAE offers one of the most attractive real estate investment environments globally, with tax-free income, high rental yields, and a stable political climate.</p>
+        
+        <h3>Legal Requirements for Foreign Investors</h3>
+        <ul>
+          <li>Freehold ownership available in designated areas</li>
+          <li>No restrictions on property resale</li>
+          <li>Investor visa eligibility for property owners</li>
+          <li>Transparent legal framework</li>
+        </ul>
+        
+        <h3>Financing Options</h3>
+        <p>Various financing options are available for both residents and non-residents, with competitive interest rates and flexible payment terms.</p>
+        
+        <h3>Best Areas for Investment</h3>
+        <p>Popular investment areas include Dubai Marina, Business Bay, Downtown Dubai, and emerging areas like Dubai South and Mohammed Bin Rashid City.</p>`,
+        category: 'Investment Guide',
+        tags: ['UAE', 'Property Investment', 'Real Estate Guide', 'Foreign Investment'],
+        status: 'published',
+        featured: true,
+        image: '/uploads/blogs/uae-investment-guide.jpg',
+        author: admin._id,
+        views: 2100,
+        likes: 156,
+        metaTitle: 'UAE Property Investment Guide 2024 | AMZ Properties',
+        metaDescription: 'Complete guide to property investment in UAE covering legal requirements, financing options, and best investment areas.',
+        keywords: 'UAE property investment, Dubai real estate, foreign investment, property guide',
+        publishedAt: new Date('2024-02-01')
+      },
+      {
+        title: 'Luxury Living: Premium Properties in Palm Jumeirah',
+        slug: 'luxury-living-premium-properties-palm-jumeirah',
+        excerpt: 'Explore the epitome of luxury living with premium properties in Palm Jumeirah, featuring exclusive amenities and breathtaking views.',
+        content: `<h2>Palm Jumeirah: The Crown Jewel of Dubai</h2>
+        <p>Palm Jumeirah stands as one of the world's most prestigious addresses, offering unparalleled luxury living with stunning sea views and world-class amenities.</p>
+        
+        <h3>Premium Property Features</h3>
+        <ul>
+          <li>Private beach access</li>
+          <li>Panoramic sea and city views</li>
+          <li>Luxury amenities and concierge services</li>
+          <li>Exclusive community facilities</li>
+          <li>High-end retail and dining options</li>
+        </ul>
+        
+        <h3>Investment Potential</h3>
+        <p>Properties in Palm Jumeirah have shown consistent appreciation and offer excellent rental yields, making them ideal for both lifestyle and investment purposes.</p>
+        
+        <h3>Lifestyle Benefits</h3>
+        <p>Residents enjoy access to pristine beaches, luxury resorts, fine dining restaurants, and exclusive beach clubs, all within a secure and prestigious community.</p>`,
+        category: 'Lifestyle',
+        tags: ['Palm Jumeirah', 'Luxury Properties', 'Premium Living', 'Dubai Lifestyle'],
+        status: 'published',
+        featured: false,
+        image: '/uploads/blogs/palm-jumeirah-luxury.jpg',
+        author: admin._id,
+        views: 890,
+        likes: 67,
+        metaTitle: 'Luxury Properties in Palm Jumeirah | AMZ Properties',
+        metaDescription: 'Discover premium luxury properties in Palm Jumeirah offering exclusive amenities and breathtaking views.',
+        keywords: 'Palm Jumeirah properties, luxury real estate, Dubai premium properties',
+        publishedAt: new Date('2024-02-15')
+      },
+      {
+        title: 'Smart Home Technology in Modern Dubai Properties',
+        slug: 'smart-home-technology-modern-dubai-properties',
+        excerpt: 'Discover how smart home technology is revolutionizing modern living in Dubai properties, from automated systems to energy efficiency.',
+        content: `<h2>The Future of Living: Smart Homes in Dubai</h2>
+        <p>Dubai's real estate market is embracing cutting-edge smart home technology, offering residents unprecedented convenience, security, and energy efficiency.</p>
+        
+        <h3>Key Smart Home Features</h3>
+        <ul>
+          <li>Automated lighting and climate control</li>
+          <li>Smart security systems with facial recognition</li>
+          <li>Voice-controlled home assistants</li>
+          <li>Energy management systems</li>
+          <li>Smart appliances and entertainment systems</li>
+        </ul>
+        
+        <h3>Benefits for Residents</h3>
+        <p>Smart home technology enhances comfort, security, and energy efficiency while increasing property value and appeal to tech-savvy buyers and tenants.</p>
+        
+        <h3>Popular Smart Home Developments</h3>
+        <p>Leading developers in Dubai are incorporating smart home features in new projects, making technology-enabled living the new standard for premium properties.</p>`,
+        category: 'Technology',
+        tags: ['Smart Homes', 'Technology', 'Modern Living', 'Dubai Properties'],
+        status: 'published',
+        featured: false,
+        image: '/uploads/blogs/smart-home-technology.jpg',
+        author: admin._id,
+        views: 1450,
+        likes: 112,
+        metaTitle: 'Smart Home Technology in Dubai Properties | AMZ Properties',
+        metaDescription: 'Explore how smart home technology is transforming modern living in Dubai properties with automated systems and energy efficiency.',
+        keywords: 'smart homes Dubai, property technology, automated homes, modern living',
+        publishedAt: new Date('2024-03-01')
+      }
+    ]
+
+    // Insert sample blogs
+    const createdBlogs = await Blog.insertMany(sampleBlogs)
+    
+    console.log('✅ Sample blogs created successfully!')
+    console.log(`Created ${createdBlogs.length} blogs`)
+    
+    // Display created blogs
+    createdBlogs.forEach((blog, index) => {
+      console.log(`${index + 1}. ${blog.title} - ${blog.category}`)
+    })
+    
   } catch (error) {
-    console.error('Error seeding blogs:', error)
-    process.exit(1)
+    console.error('❌ Error creating sample blogs:', error.message)
+  } finally {
+    mongoose.connection.close()
   }
 }
 
+// Run the seed function
 seedBlogs()
